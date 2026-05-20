@@ -208,9 +208,16 @@ export default async function handler(req, res) {
           text: systemPrompt(
             program,
             typeof info === "string" ? info : null,
-            // Date in Israel time — the conference and its attendees are in
-            // Israel; UTC would skew to the previous day during evening hours.
-            new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Jerusalem" }),
+            // Full date (with weekday) in Israel time. Computing the weekday
+            // server-side stops the model from guessing it — and getting it
+            // wrong. UTC would also skew to the previous day in the evening.
+            new Date().toLocaleDateString("en-US", {
+              timeZone: "Asia/Jerusalem",
+              weekday: "long",
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            }),
           ),
           cache_control: { type: "ephemeral" },
         },
