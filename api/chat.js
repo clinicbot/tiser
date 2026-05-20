@@ -160,8 +160,15 @@ export default async function handler(req, res) {
       return;
     }
   }
-  if (trimmed[0].role !== "user") {
-    res.status(400).json({ error: "Conversation must start with a user message." });
+  // The Anthropic API requires the first message to be from the user. After
+  // trimming a long conversation to the last N messages, the window may begin
+  // mid-turn on an assistant message — drop leading assistant messages so the
+  // array starts with a user turn instead of rejecting the whole request.
+  while (trimmed.length > 0 && trimmed[0].role !== "user") {
+    trimmed.shift();
+  }
+  if (trimmed.length === 0) {
+    res.status(400).json({ error: "No user message found in conversation." });
     return;
   }
 
