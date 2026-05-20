@@ -153,7 +153,9 @@ export default async function handler(req, res) {
       res.status(400).json({ error: "Invalid message format." });
       return;
     }
-    if (m.content.length > MAX_USER_MESSAGE_LENGTH) {
+    // Length cap is anti-abuse on USER input only. Assistant messages are our
+    // own API output (already bounded by max_tokens) and are legitimately long.
+    if (m.role === "user" && m.content.length > MAX_USER_MESSAGE_LENGTH) {
       res.status(400).json({ error: "Message too long." });
       return;
     }
