@@ -48,10 +48,22 @@ function setCORS(res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 }
 
-function systemPrompt(programText) {
+function systemPrompt(programText, infoText, todayStr) {
+  const infoSection = infoText
+    ? `
+
+=== GENERAL CONFERENCE INFORMATION (registration & fees, venue & parking, hotels, tours & social program, committees, sponsors, abstracts) ===
+
+${infoText}
+
+=== END OF GENERAL CONFERENCE INFORMATION ===`
+    : "";
+
   return `You are an assistant for the Israeli Society of Dermatology and Venereology Annual Conference 2026 (June 3–5, 2026, Jerusalem).
 
-Your job is to answer attendees' questions about the conference program based ONLY on the program text below. Do not invent sessions, speakers, times, or topics that aren't in the program.
+Today's date is ${todayStr}.
+
+Your job is to answer attendees' questions based ONLY on the conference program and the general conference information below. This covers both the lecture/session schedule AND practical details (registration & fees, venue & parking, hotels, tours & social events, committees, sponsors, abstracts). Do not invent sessions, speakers, times, prices, or any other detail that isn't in the text below.
 
 Guidelines:
 - Detect the user's language (Hebrew or English) and respond in the same language.
@@ -82,7 +94,8 @@ Guidelines:
 - Be concise and direct. Use bullet points or short tables when listing multiple items.
 - COUNTING QUESTIONS ("how many lectures/talks on topic X"): Be exhaustive and systematic, not quick. Work through the ENTIRE program day by day (all 3 days), session by session, including every parallel workshop, symposium, breakfast/lunch session and panel. Count every item where topic X appears in its title OR is clearly its subject — NOT only items whose title is exactly the word "X". For example, a talk titled "Psoriasis and Risk of 26 Cancers" or "IL-17 Inhibitors in Psoriasis" both count as psoriasis talks. After scanning everything, give: (1) the total number, and (2) the full itemized list grouped by day. Never stop after the obvious matches, and never count only exact-title matches — this produces wrong, inconsistent answers.
 - If asked about a person, find every session they appear in (speaker, chair, moderator, panelist).
-- If the answer isn't in the program, say so honestly rather than guessing.
+- For time-sensitive questions, use today's date (${todayStr}). For example, when asked about registration fees, state whether the early-registration deadline (May 10, 2026) has already passed and which price currently applies.
+- If the answer isn't in the program or the general conference information, say so honestly rather than guessing.
 - Convert times to a clear format. In English: "Wednesday June 3, 14:00–14:20". In Hebrew: "יום רביעי 3 ביוני, 14:00–14:20".
 
 CRITICAL — Hebrew day-naming rule:
@@ -98,11 +111,11 @@ When referring to the conference days in Hebrew, ALWAYS use either:
   (b) the ordinal phrase WITH the definite article "ה": "היום הראשון של הכנס" / "היום השני של הכנס" / "היום השלישי של הכנס". The "ה" prefix is mandatory — "היום הראשון" means "the first day", whereas "יום ראשון" means "Sunday".
 Combine both when helpful, e.g. "היום הראשון של הכנס (יום רביעי, 3 ביוני)". This applies everywhere, including section headings and table cells.
 
-=== CONFERENCE PROGRAM ===
+=== CONFERENCE PROGRAM (lectures and sessions) ===
 
 ${programText}
 
-=== END OF PROGRAM ===`;
+=== END OF CONFERENCE PROGRAM ===${infoSection}`;
 }
 
 export default async function handler(req, res) {
@@ -131,7 +144,7 @@ export default async function handler(req, res) {
 
   // Vercel auto-parses JSON bodies on POST when content-type is application/json.
   const body = req.body || {};
-  const { program, messages } = body;
+  const { program, info, messages } = body;
 
   if (typeof program !== "string" || program.length === 0) {
     res.status(400).json({ error: "Missing program text." });
@@ -139,6 +152,16 @@ export default async function handler(req, res) {
   }
   if (program.length > MAX_PROGRAM_LENGTH) {
     res.status(400).json({ error: "Program text too large." });
+    return;
+  }
+  // info (general conference logistics) is optional — an older cached client
+  // may not send it. When present it must be a string within the size cap.
+  if (info !== undefined && info !== null && typeof info !== "string") {
+    res.status(400).json({ error: "Invalid conference info." });
+    return;
+  }
+  if (typeof info === "string" && info.length > MAX_PROGRAM_LENGTH) {
+    res.status(400).json({ error: "Conference info too large." });
     return;
   }
   if (!Array.isArray(messages) || messages.length === 0) {
@@ -182,7 +205,11 @@ export default async function handler(req, res) {
       system: [
         {
           type: "text",
-          text: systemPrompt(program),
+          text: systemPrompt(
+            program,
+            typeof info === "string" ? info : null,
+            new Date().toISOString().slice(0, 10),
+          ),
           cache_control: { type: "ephemeral" },
         },
       ],

@@ -324,6 +324,7 @@
     // ============== state ==============
     let lang = "en";
     let programText = null;
+    let infoText = null;
     let history = [];          // [{role: "user"|"assistant", content: string}]
     let isSending = false;
 
@@ -412,8 +413,11 @@
       return wrap;
     }
 
-    // ============== program loading ==============
-    async function loadProgram() {
+    // ============== data loading ==============
+    async function loadData() {
+      // program.txt is required. conference_info.txt is best-effort — if it
+      // fails to load, the tool still answers program questions (the proxy
+      // treats the info section as optional).
       try {
         const r = await fetch("program.txt", { cache: "no-cache" });
         if (!r.ok) throw new Error("HTTP " + r.status);
@@ -421,6 +425,14 @@
       } catch (e) {
         console.error("Failed to load program.txt:", e);
         appendMessage("assistant", I18N[lang].programError, { error: true });
+        return;
+      }
+      try {
+        const r = await fetch("conference_info.txt", { cache: "no-cache" });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        infoText = await r.text();
+      } catch (e) {
+        console.error("Failed to load conference_info.txt (continuing without it):", e);
       }
     }
 
@@ -446,6 +458,7 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             program: programText,
+            info: infoText,
             messages: history,
           }),
         });
@@ -508,7 +521,7 @@
     // ============== init ==============
     const browserLang = (navigator.language || "en").toLowerCase().startsWith("he") ? "he" : "en";
     setLang(browserLang);
-    loadProgram();
+    loadData();
   </script>
 </body>
 </html>
