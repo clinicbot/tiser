@@ -1,0 +1,17 @@
+node_modules/
+.vercel
+.env
+.env.local
+.env.*.local
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Scratch files from PDF extraction
+_raw_extract.txt
+
+.vercel

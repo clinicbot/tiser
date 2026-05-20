@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f4c5c" />
+  <title>Derma 2026 — Conference AI Assistant</title>
+  <style>
+    :root {
+      --bg: #f7f5f0;
+      --surface: #ffffff;
+      --ink: #1b1b1d;
+      --ink-soft: #595a5e;
+      --accent: #0f4c5c;
+      --accent-soft: #e3eef0;
+      --bubble-user: #0f4c5c;
+      --bubble-user-text: #ffffff;
+      --bubble-assistant: #ffffff;
+      --bubble-assistant-text: #1b1b1d;
+      --border: #e5e2dc;
+      --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06);
+      --radius: 14px;
+      --error: #b32c2c;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans Hebrew", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      display: flex;
+      flex-direction: column;
+      min-height: 100dvh;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+    .brand {
+      flex: 1;
+      min-width: 0;
+    }
+    .brand h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      color: var(--accent);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .brand .subtitle {
+      margin: 2px 0 0;
+      font-size: 12px;
+      color: var(--ink-soft);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .lang-toggle {
+      background: var(--accent-soft);
+      color: var(--accent);
+      border: none;
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .lang-toggle:hover { background: #d1e3e6; }
+
+    main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+    }
+    .chat {
+      max-width: 760px;
+      width: 100%;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .intro {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px;
+      box-shadow: var(--shadow);
+    }
+    .intro h2 {
+      margin: 0 0 10px;
+      font-size: 17px;
+      color: var(--accent);
+    }
+    .intro p {
+      margin: 0 0 14px;
+      color: var(--ink-soft);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    .intro .examples {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .example-chip {
+      background: var(--accent-soft);
+      color: var(--accent);
+      border: none;
+      border-radius: 999px;
+      padding: 7px 13px;
+      font-size: 13px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .example-chip:hover { background: #d1e3e6; }
+
+    .msg {
+      display: flex;
+      max-width: 100%;
+    }
+    .msg.user { justify-content: flex-end; }
+    .msg.assistant { justify-content: flex-start; }
+    .bubble {
+      max-width: 85%;
+      padding: 12px 16px;
+      border-radius: var(--radius);
+      font-size: 15px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+    .msg.user .bubble {
+      background: var(--bubble-user);
+      color: var(--bubble-user-text);
+      border-bottom-right-radius: 4px;
+    }
+    .msg.assistant .bubble {
+      background: var(--bubble-assistant);
+      color: var(--bubble-assistant-text);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+      box-shadow: var(--shadow);
+    }
+    .msg.assistant.error .bubble {
+      border-color: #f3c8c8;
+      color: var(--error);
+      background: #fdf3f3;
+    }
+    .bubble.rtl { direction: rtl; text-align: right; }
+    .bubble.ltr { direction: ltr; text-align: left; }
+
+    .typing {
+      display: inline-flex;
+      gap: 4px;
+      align-items: center;
+    }
+    .typing span {
+      width: 7px; height: 7px;
+      background: var(--ink-soft);
+      border-radius: 50%;
+      animation: blink 1.2s infinite ease-in-out;
+    }
+    .typing span:nth-child(2) { animation-delay: 0.15s; }
+    .typing span:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes blink {
+      0%, 80%, 100% { opacity: 0.3; transform: scale(0.9); }
+      40% { opacity: 1; transform: scale(1.1); }
+    }
+
+    footer {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 12px 16px;
+      padding-bottom: max(12px, env(safe-area-inset-bottom));
+      flex-shrink: 0;
+    }
+    .composer {
+      max-width: 760px;
+      margin: 0 auto;
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+    }
+    textarea#input {
+      flex: 1;
+      resize: none;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 15px;
+      font-family: inherit;
+      line-height: 1.4;
+      max-height: 160px;
+      min-height: 44px;
+      background: var(--surface);
+      color: var(--ink);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    textarea#input:focus { border-color: var(--accent); }
+    textarea#input.rtl { direction: rtl; text-align: right; }
+    button#send {
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      padding: 0 18px;
+      height: 44px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      flex-shrink: 0;
+      font-family: inherit;
+    }
+    button#send:hover:not(:disabled) { background: #0c3d4b; }
+    button#send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .footnote {
+      max-width: 760px;
+      margin: 8px auto 0;
+      text-align: center;
+      font-size: 11px;
+      color: var(--ink-soft);
+    }
+
+    @media (max-width: 600px) {
+      header { padding: 12px 14px; }
+      .brand h1 { font-size: 14px; }
+      .brand .subtitle { font-size: 11px; }
+      main { padding: 16px 12px; }
+      .bubble { font-size: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1 id="title">Israeli Society of Dermatology &amp; Venereology — Annual Conference 2026</h1>
+      <div class="subtitle" id="subtitle">June 3–5, 2026 · Jerusalem · Ask anything about the program</div>
+    </div>
+    <button class="lang-toggle" id="lang-toggle" aria-label="Switch language">עברית</button>
+  </header>
+
+  <main>
+    <div class="chat" id="chat">
+      <div class="intro" id="intro">
+        <h2 id="intro-title">Hi — I'm an AI assistant for the Derma 2026 conference program.</h2>
+        <p id="intro-text">Ask me anything about sessions, speakers, times, or topics. I answer in your language (English or Hebrew).</p>
+        <div class="examples" id="examples"></div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <form class="composer" id="composer">
+      <textarea id="input" rows="1" placeholder="Ask about the program…" autocomplete="off"></textarea>
+      <button id="send" type="submit">Send</button>
+    </form>
+    <div class="footnote" id="footnote">
+      Built by Dr. Jonathan Shapiro · Powered by Claude · Demoed at the Practical AI Workshop, Friday June 5th 11:05
+    </div>
+  </footer>
+
+  <script>
+    // ============== i18n ==============
+    const I18N = {
+      en: {
+        title: "Israeli Society of Dermatology & Venereology — Annual Conference 2026",
+        subtitle: "June 3–5, 2026 · Jerusalem · Ask anything about the program",
+        introTitle: "Hi — I'm an AI assistant for the Derma 2026 conference program.",
+        introText: "Ask me anything about sessions, speakers, times, or topics. I answer in your language (English or Hebrew).",
+        placeholder: "Ask about the program…",
+        send: "Send",
+        toggle: "עברית",
+        footnote: "Built by Dr. Jonathan Shapiro · Powered by Claude · Demoed at the Practical AI Workshop, Friday June 5th 11:05",
+        loadingProgram: "Loading conference program…",
+        programError: "Couldn't load the conference program. Please refresh the page.",
+        examples: [
+          "When is Prof. Lebwohl speaking?",
+          "How many lectures on psoriasis?",
+          "What's the AI workshop schedule?",
+          "List all pediatric dermatology talks",
+        ],
+        chatError: "Something went wrong. Please try again.",
+      },
+      he: {
+        title: "האיגוד הישראלי לרפואת עור — הכנס השנתי 2026",
+        subtitle: "3–5 ביוני 2026 · ירושלים · שאלו כל שאלה על התוכנייה",
+        introTitle: "שלום — אני עוזר ה-AI לתוכנית כנס הדרמטולוגיה השנתי 2026.",
+        introText: "שאלו אותי כל דבר על מושבים, מרצים, זמנים או נושאים. אני עונה בשפה שלכם (עברית או אנגלית).",
+        placeholder: "שאלו על התוכנייה…",
+        send: "שלח",
+        toggle: "English",
+        footnote: "נבנה ע״י ד״ר יונתן שפירא · מבוסס על Claude · הדגמה בסדנת ה-AI היישומי, יום שישי 5 ביוני 11:05",
+        loadingProgram: "טוען את תוכניית הכנס…",
+        programError: "לא הצלחנו לטעון את תוכניית הכנס. אנא רעננו את הדף.",
+        examples: [
+          "מתי פרופ׳ לבוול מרצה?",
+          "כמה הרצאות יש על פסוריאזיס?",
+          "מה לוח הזמנים של סדנת ה-AI?",
+          "פרט את כל ההרצאות בדרמטולוגיית ילדים",
+        ],
+        chatError: "משהו השתבש. נסו שוב.",
+      },
+    };
+
+    // ============== state ==============
+    let lang = "en";
+    let programText = null;
+    let history = [];          // [{role: "user"|"assistant", content: string}]
+    let isSending = false;
+
+    // ============== DOM ==============
+    const $chat = document.getElementById("chat");
+    const $intro = document.getElementById("intro");
+    const $examples = document.getElementById("examples");
+    const $input = document.getElementById("input");
+    const $send = document.getElementById("send");
+    const $composer = document.getElementById("composer");
+    const $title = document.getElementById("title");
+    const $subtitle = document.getElementById("subtitle");
+    const $introTitle = document.getElementById("intro-title");
+    const $introText = document.getElementById("intro-text");
+    const $footnote = document.getElementById("footnote");
+    const $langToggle = document.getElementById("lang-toggle");
+
+    // ============== helpers ==============
+    function isHebrew(text) {
+      return /[֐-׿]/.test(text);
+    }
+    function dirFor(text) {
+      return isHebrew(text) ? "rtl" : "ltr";
+    }
+    function scrollToBottom() {
+      requestAnimationFrame(() => {
+        document.querySelector("main").scrollTop = document.querySelector("main").scrollHeight;
+      });
+    }
+    function setLang(newLang) {
+      lang = newLang;
+      const t = I18N[lang];
+      document.documentElement.lang = lang;
+      document.documentElement.dir = lang === "he" ? "rtl" : "ltr";
+      $title.textContent = t.title;
+      $subtitle.textContent = t.subtitle;
+      $introTitle.textContent = t.introTitle;
+      $introText.textContent = t.introText;
+      $input.placeholder = t.placeholder;
+      $input.classList.toggle("rtl", lang === "he");
+      $send.textContent = t.send;
+      $langToggle.textContent = t.toggle;
+      $footnote.textContent = t.footnote;
+      renderExamples();
+    }
+    function renderExamples() {
+      $examples.innerHTML = "";
+      I18N[lang].examples.forEach((q) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "example-chip";
+        b.textContent = q;
+        b.dir = dirFor(q);
+        b.addEventListener("click", () => {
+          $input.value = q;
+          $input.dispatchEvent(new Event("input"));
+          $input.focus();
+        });
+        $examples.appendChild(b);
+      });
+    }
+
+    function appendMessage(role, content, opts = {}) {
+      if ($intro && $intro.parentNode) $intro.remove();
+      const wrap = document.createElement("div");
+      wrap.className = "msg " + role + (opts.error ? " error" : "");
+      const bubble = document.createElement("div");
+      bubble.className = "bubble " + dirFor(content || "");
+      bubble.textContent = content;
+      wrap.appendChild(bubble);
+      $chat.appendChild(wrap);
+      scrollToBottom();
+      return bubble;
+    }
+
+    function appendTyping() {
+      if ($intro && $intro.parentNode) $intro.remove();
+      const wrap = document.createElement("div");
+      wrap.className = "msg assistant";
+      const bubble = document.createElement("div");
+      bubble.className = "bubble ltr";
+      bubble.innerHTML = '<span class="typing"><span></span><span></span><span></span></span>';
+      wrap.appendChild(bubble);
+      $chat.appendChild(wrap);
+      scrollToBottom();
+      return wrap;
+    }
+
+    // ============== program loading ==============
+    async function loadProgram() {
+      try {
+        const r = await fetch("program.txt", { cache: "no-cache" });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        programText = await r.text();
+      } catch (e) {
+        console.error("Failed to load program.txt:", e);
+        appendMessage("assistant", I18N[lang].programError, { error: true });
+      }
+    }
+
+    // ============== sending ==============
+    async function sendMessage(userText) {
+      if (isSending || !userText.trim()) return;
+      if (!programText) {
+        appendMessage("assistant", I18N[lang].programError, { error: true });
+        return;
+      }
+
+      isSending = true;
+      $send.disabled = true;
+
+      appendMessage("user", userText);
+      history.push({ role: "user", content: userText });
+
+      const typingEl = appendTyping();
+
+      try {
+        const resp = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            program: programText,
+            messages: history,
+          }),
+        });
+
+        let data;
+        try { data = await resp.json(); }
+        catch { data = null; }
+
+        if (!resp.ok) {
+          const msg = (data && data.error) || I18N[lang].chatError;
+          typingEl.remove();
+          appendMessage("assistant", msg, { error: true });
+          // pop the user message so retry works cleanly
+          history.pop();
+        } else {
+          typingEl.remove();
+          const reply = (data && data.reply) || "";
+          appendMessage("assistant", reply);
+          history.push({ role: "assistant", content: reply });
+        }
+      } catch (err) {
+        console.error(err);
+        typingEl.remove();
+        appendMessage("assistant", I18N[lang].chatError, { error: true });
+        history.pop();
+      } finally {
+        isSending = false;
+        $send.disabled = false;
+        $input.focus();
+      }
+    }
+
+    // ============== event wiring ==============
+    $langToggle.addEventListener("click", () => setLang(lang === "en" ? "he" : "en"));
+
+    $input.addEventListener("input", () => {
+      // auto-resize
+      $input.style.height = "auto";
+      $input.style.height = Math.min($input.scrollHeight, 160) + "px";
+      // auto-direction based on input
+      $input.classList.toggle("rtl", isHebrew($input.value) || (lang === "he" && !$input.value));
+    });
+
+    $input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        $composer.requestSubmit();
+      }
+    });
+
+    $composer.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const text = $input.value.trim();
+      if (!text) return;
+      $input.value = "";
+      $input.style.height = "auto";
+      sendMessage(text);
+    });
+
+    // ============== init ==============
+    const browserLang = (navigator.language || "en").toLowerCase().startsWith("he") ? "he" : "en";
+    setLang(browserLang);
+    loadProgram();
+  </script>
+</body>
+</html>
