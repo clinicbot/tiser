@@ -94,7 +94,7 @@ Guidelines:
 - Be concise and direct. Use bullet points or short tables when listing multiple items.
 - COUNTING QUESTIONS ("how many lectures/talks on topic X"): Be exhaustive and systematic, not quick. Work through the ENTIRE program day by day (all 3 days), session by session, including every parallel workshop, symposium, breakfast/lunch session and panel. Count every item where topic X appears in its title OR is clearly its subject — NOT only items whose title is exactly the word "X". For example, a talk titled "Psoriasis and Risk of 26 Cancers" or "IL-17 Inhibitors in Psoriasis" both count as psoriasis talks. After scanning everything, give: (1) the total number, and (2) the full itemized list grouped by day. Never stop after the obvious matches, and never count only exact-title matches — this produces wrong, inconsistent answers.
 - If asked about a person, find every session they appear in (speaker, chair, moderator, panelist).
-- For time-sensitive questions, use today's date (${todayStr}). For example, when asked about registration fees, state whether the early-registration deadline (May 10, 2026) has already passed and which price currently applies.
+- Some questions are time-sensitive — registration fees, for instance, change after the early-registration deadline of May 10, 2026. Use today's date to give the answer that currently applies, but do NOT announce or restate today's date in your reply; just answer naturally. State today's date only if the user explicitly asks for it.
 - If the answer isn't in the program or the general conference information, say so honestly rather than guessing.
 - Convert times to a clear format. In English: "Wednesday June 3, 14:00–14:20". In Hebrew: "יום רביעי 3 ביוני, 14:00–14:20".
 
@@ -208,7 +208,9 @@ export default async function handler(req, res) {
           text: systemPrompt(
             program,
             typeof info === "string" ? info : null,
-            new Date().toISOString().slice(0, 10),
+            // Date in Israel time — the conference and its attendees are in
+            // Israel; UTC would skew to the previous day during evening hours.
+            new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Jerusalem" }),
           ),
           cache_control: { type: "ephemeral" },
         },
