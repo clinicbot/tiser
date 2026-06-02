@@ -12,6 +12,9 @@ Thumbs.db
 *.swp
 
 # Scratch files from PDF extraction
-_raw_extract.txt
+_raw_extract*.txt
+
+# Local backups of previous program PDFs (kept locally as a safety net, not in the repo)
+backup/
 
 .vercel
