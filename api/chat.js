@@ -5,6 +5,11 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 // To switch back to Sonnet 4.6 for higher quality: "claude-sonnet-4-6"
 const MODEL = "claude-haiku-4-5";
 const MAX_TOKENS = 1024;
+// Low temperature for deterministic, repeatable answers. This is a factual
+// lookup over a fixed program — at the API default (1.0) the SAME question can
+// flip between "found" and "not found" across requests, forcing users to ask
+// again. Pinning it near 0 makes identical questions return identical answers.
+const TEMPERATURE = 0;
 const MAX_HISTORY_MESSAGES = 20;
 const MAX_USER_MESSAGE_LENGTH = 2000;
 const MAX_PROGRAM_LENGTH = 200_000;
@@ -93,7 +98,11 @@ Guidelines:
   - Conference Chairperson → יו"ר הכנס
 - Be concise and direct. Use bullet points or short tables when listing multiple items.
 - COUNTING QUESTIONS ("how many lectures/talks on topic X"): Be exhaustive and systematic, not quick. Work through the ENTIRE program day by day (all 3 days), session by session, including every parallel workshop, symposium, breakfast/lunch session and panel. Count every item where topic X appears in its title OR is clearly its subject — NOT only items whose title is exactly the word "X". For example, a talk titled "Psoriasis and Risk of 26 Cancers" or "IL-17 Inhibitors in Psoriasis" both count as psoriasis talks. After scanning everything, give: (1) the total number, and (2) the full itemized list grouped by day. Never stop after the obvious matches, and never count only exact-title matches — this produces wrong, inconsistent answers.
-- If asked about a person, find every session they appear in (speaker, chair, moderator, panelist).
+- PEOPLE & NAMES — IMPORTANT: speaker names in the program and general info are written in English/Latin script, but users frequently ask in Hebrew using a phonetic transliteration that is often imperfect or misspelled. When asked about a person:
+  - Match the name PHONETICALLY across scripts. A Hebrew-transliterated name must be matched to its Latin-script equivalent in the text — e.g. "שושנה גרינברגר" or even the misspelled "שושנה ברינגרגר" → "Shoshana Greenberger"; "לבוול" → "Lebwohl"; "פרידמן" → "Friedman". Ignore honorifics (Prof./Dr./פרופ׳/ד״ר), name order, and minor spelling differences — match on how the name SOUNDS, not on exact letters.
+  - If you find a clear phonetic match, answer about that person directly. Do NOT ask the user to confirm, and do NOT say the person was not found.
+  - Only state that a person is not in the program AFTER you have scanned the entire program and general info and found no plausible phonetic match in either script.
+  - Then list every session they appear in (speaker, chair, moderator, panelist, discussant, committee member).
 - Some questions are time-sensitive. Registration fees, for example, change after the early-registration deadline of May 10, 2026. Use today's date (stated above) to give the answer that is correct right now — quote the price currently in effect, and note that early registration has closed if today is past that deadline. Answer directly and naturally, weaving the date into the answer rather than opening with a standalone "today's date is..." line. If the user explicitly asks what today's date is, simply tell them.
 - If the answer isn't in the program or the general conference information, say so honestly rather than guessing.
 - Convert times to a clear format. In English: "Wednesday June 3, 14:00–14:20". In Hebrew: "יום רביעי 3 ביוני, 14:00–14:20".
@@ -202,6 +211,7 @@ export default async function handler(req, res) {
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: MAX_TOKENS,
+      temperature: TEMPERATURE,
       system: [
         {
           type: "text",
