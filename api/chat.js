@@ -2,8 +2,14 @@ import Anthropic from "@anthropic-ai/sdk";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// To switch back to Sonnet 4.6 for higher quality: "claude-sonnet-4-6"
-const MODEL = "claude-haiku-4-5";
+// Sonnet 4.6 for higher-quality document-grounded reasoning. Haiku 4.5 was
+// cheaper but made reliability errors on this task: it mis-attributed session
+// days (using a "Session N -> Day N" shortcut despite explicit instructions not
+// to) and hallucinated/conflated roles (e.g. inventing a Session 8 moderator
+// slot). Sonnet handles careful program tracing far better; prompt caching on
+// the large system prompt keeps the cost difference small. To revert for cost:
+// "claude-haiku-4-5".
+const MODEL = "claude-sonnet-4-6";
 const MAX_TOKENS = 1024;
 // Low temperature for deterministic, repeatable answers. This is a factual
 // lookup over a fixed program — at the API default (1.0) the SAME question can
