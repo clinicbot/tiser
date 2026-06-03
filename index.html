@@ -239,6 +239,15 @@
       font-size: 13px;
       color: var(--ink-soft);
     }
+    .footnote .disclaimer {
+      margin-top: 6px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .footnote a {
+      color: var(--accent);
+      text-decoration: underline;
+    }
 
     @media (max-width: 600px) {
       header { padding: 12px 14px; }
@@ -290,6 +299,7 @@
         send: "Send",
         toggle: "עברית",
         footnote: "Built by Dr. Jonathan Shapiro · Powered by Claude · Demoed at the Practical AI Workshop, Friday June 5th 11:05",
+        disclaimer: "Note: AI can make mistakes, please verify against the official conference program. Found an error or have a suggestion? We'd love to hear: ",
         loadingProgram: "Loading conference program…",
         programError: "Couldn't load the conference program. Please refresh the page.",
         examples: [
@@ -310,6 +320,7 @@
         send: "שלח",
         toggle: "English",
         footnote: "נבנה ע״י ד״ר יונתן שפירא · מבוסס על Claude · הדגמה בסדנת ה-AI היישומי, יום שישי 5 ביוני 11:05",
+        disclaimer: "שימו לב: בינה מלאכותית עלולה לטעות, מומלץ לאמת מול תוכנית הכנס הרשמית. נתקלתם בטעות או יש הצעה לשיפור? נשמח לשמוע: ",
         loadingProgram: "טוען את תוכניית הכנס…",
         programError: "לא הצלחנו לטעון את תוכניית הכנס. אנא רעננו את הדף.",
         examples: [
@@ -369,7 +380,18 @@
       $input.classList.toggle("rtl", lang === "he");
       $send.textContent = t.send;
       $langToggle.textContent = t.toggle;
-      $footnote.textContent = t.footnote;
+      // Credit line (plain text) + disclaimer line with a clickable email.
+      // Strings are trusted constants from I18N, so innerHTML is safe here.
+      const creditLine = document.createElement("div");
+      creditLine.textContent = t.footnote;
+      const disclaimerLine = document.createElement("div");
+      disclaimerLine.className = "disclaimer";
+      disclaimerLine.textContent = t.disclaimer;
+      const mail = document.createElement("a");
+      mail.href = "mailto:jonmidi@gmail.com";
+      mail.textContent = "jonmidi@gmail.com";
+      disclaimerLine.appendChild(mail);
+      $footnote.replaceChildren(creditLine, disclaimerLine);
       renderExamples();
     }
     function renderExamples() {
