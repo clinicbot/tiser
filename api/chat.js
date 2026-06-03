@@ -115,16 +115,33 @@ function buildSpeakerIndex(programText) {
   const groups = {};
   for (const r of recs) { (groups[r.inst] = groups[r.inst] || []).push(r); }
   const dayOrder = { Wed: 1, Thu: 2, Fri: 3 };
+  const byDayTime = (a, b) =>
+    (dayOrder[a.day] || 9) - (dayOrder[b.day] || 9) || a.time.localeCompare(b.time);
   let out = "";
   for (const inst of Object.keys(groups).sort()) {
+    const all = groups[inst];
+    // Pre-split so "lectures/talks from <inst>" is a verbatim copy of one list,
+    // with no per-person role filtering for the model to get wrong.
+    const talks = all.filter((r) => r.role === "Speaker").sort(byDayTime);
+    const others = all.filter((r) => r.role !== "Speaker").sort(byDayTime);
     out += `\n${inst}:\n`;
-    const items = groups[inst].sort(
-      (a, b) => (dayOrder[a.day] || 9) - (dayOrder[b.day] || 9) || a.time.localeCompare(b.time)
-    );
-    for (const r of items) {
-      const t = r.title ? ` — ${r.title}` : "";
-      const ctx = r.context ? ` (${r.context})` : "";
-      out += `  [${r.day}] ${r.time} | ${r.role} | ${r.name}${t}${ctx}\n`;
+    out += `  Talks (lectures — Role=Speaker):\n`;
+    if (talks.length) {
+      for (const r of talks) {
+        const t = r.title ? ` — ${r.title}` : "";
+        const ctx = r.context ? ` (${r.context})` : "";
+        out += `    [${r.day}] ${r.time} | ${r.name}${t}${ctx}\n`;
+      }
+    } else {
+      out += `    (none)\n`;
+    }
+    if (others.length) {
+      out += `  Other roles (Chair/Moderator/Panel/Case — NOT lectures):\n`;
+      for (const r of others) {
+        const t = r.title ? ` — ${r.title}` : "";
+        const ctx = r.context ? ` (${r.context})` : "";
+        out += `    [${r.day}] ${r.time} | ${r.role} | ${r.name}${t}${ctx}\n`;
+      }
     }
   }
   return out;
@@ -145,8 +162,9 @@ function systemPrompt(programText, infoText, todayStr) {
 
 === SPEAKER INDEX BY INSTITUTION (auto-generated from the program above — AUTHORITATIVE and COMPLETE for enumeration) ===
 
-Every speaker, chair, moderator, panelist and case-presenter appearance in the program, grouped by institution. Each line is: [Day] Time | Role | Name — Title (Session/Workshop).
-For any question that ENUMERATES by institution, speaker, or role — e.g. "which lectures/speakers are from <hospital>", "list everyone from X", "all of Dr. Y's appearances/sessions" — treat THIS index as the complete, authoritative list and build your answer from it. Do NOT re-scan the program and risk missing items (especially in the parallel Friday workshops). Role meanings: "Speaker" = gives a talk; "Chair"/"Moderator" = runs a session, not a talk; "Panel"/"Case" = a contribution inside a panel or case session. When the user asks specifically for "lectures"/"הרצאות", that means Role = Speaker (mention Panel/Case items separately only if relevant), and exclude Chair/Moderator-only roles. IMPORTANT: a person may hold MORE THAN ONE role — e.g. someone who gives a talk (Speaker) AND also chairs another session. Always include every Speaker entry, and never drop a person from a lectures list just because they ALSO appear as a Chair, Moderator or Panelist elsewhere. Filter by the ROLE on each line, not by the person.
+Every speaker, chair, moderator, panelist and case-presenter appearance in the program, grouped by institution. Under each institution the entries are PRE-SPLIT into two lists: "Talks (lectures — Role=Speaker)" and "Other roles (Chair/Moderator/Panel/Case — NOT lectures)".
+For any question that ENUMERATES by institution, speaker, or role — e.g. "which lectures/speakers are from <hospital>", "list everyone from X", "all of Dr. Y's appearances/sessions" — treat THIS index as the complete, authoritative list and build your answer from it. Do NOT re-scan the program and risk missing items (especially in the parallel Friday workshops).
+When the user asks for "lectures"/"הרצאות"/"talks" from an institution, your answer is EXACTLY the institution's "Talks (lectures — Role=Speaker)" list — copy every entry in it, no more and no fewer, and do not move anything from "Other roles" into it. When asked more broadly for everyone or all appearances from an institution, use both lists and label the roles. The same question must always yield the same complete list.
 ${speakerIndex}
 === END OF SPEAKER INDEX ===`
     : "";
