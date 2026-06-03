@@ -59,7 +59,98 @@ function setCORS(res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 }
 
+// Deterministically extract every speaker/chair/moderator/panelist appearance
+// from the program and group them by institution. This index is appended to the
+// system prompt so that enumeration queries ("which lectures from hospital X",
+// "list everyone from Y", "all of Dr. Z's appearances") can be answered from a
+// clean, complete, pre-extracted list instead of the model re-scanning the
+// nested program — which it does inconsistently, missing items in parallel
+// workshops. The index is generated from the program text on every request, so
+// it never goes stale when program.txt is updated.
+function buildSpeakerIndex(programText) {
+  const lines = programText.split(/\r?\n/);
+  let day = "", time = "", title = "", context = "";
+  const recs = [];
+  const dayShort = { "1": "Wed", "2": "Thu", "3": "Fri" };
+  const add = (inst, name, role) => {
+    inst = (inst || "").trim().replace(/\s+/g, " ");
+    name = (name || "").trim();
+    if (!inst || !name) return false;
+    recs.push({ day, time, context, title, role, name, inst });
+    return true;
+  };
+  for (const l of lines) {
+    let m;
+    if ((m = l.match(/^DAY (\d)\b/))) { day = dayShort[m[1]] || ("Day" + m[1]); continue; }
+    if (/^Session \d+/.test(l)) { context = l.replace(/\s*[—–-].*$/, "").trim(); title = ""; continue; }
+    if ((m = l.match(/^>>> WORKSHOP:\s*(.+?)\s*\(/))) { context = "Workshop: " + m[1]; title = ""; continue; }
+    if ((m = l.match(/^(\d{2}:\d{2}[–-]\d{2}:\d{2})\s+(.*)$/))) {
+      time = m[1];
+      const rest = m[2];
+      if (!/^\|/.test(rest) && !/^Chairs:/.test(rest)) {
+        title = rest.replace(/\s*\(Sponsored[^)]*\)/i, "").trim();
+      }
+      // fall through — a session time line can also carry inline "| Chairs: ..."
+    }
+    if ((m = l.match(/(Chairs?|Moderators?):\s*(.+)$/))) {
+      const role = /^Chair/i.test(m[1]) ? "Chair" : "Moderator";
+      const list = m[2];
+      let found = false;
+      const re = /([^;()]+?)\s*\(([^)]+)\)/g;
+      let mm;
+      while ((mm = re.exec(list))) { add(mm[2], mm[1], role); found = true; }
+      if (!found) { const s = list.match(/^(.+?),\s*(.+)$/); if (s) add(s[2], s[1], role); }
+      continue;
+    }
+    // panel/tumor-board item carrying its own inline time: "- 08:38–08:46 Name, Inst"
+    if ((m = l.match(/^\s*-\s*\d{2}:\d{2}[–-]\d{2}:\d{2}\s+(.+?),\s*(.+)$/))) { add(m[2], m[1], "Case"); continue; }
+    // panel item with its own title: "- Title — Name, Inst"
+    if ((m = l.match(/^\s*-\s*(.+?)\s+—\s+(.+?),\s*(.+)$/))) { if (add(m[3], m[2], "Panel")) recs[recs.length - 1].title = m[1].trim(); continue; }
+    // simple panel item: "- Name, Inst"
+    if ((m = l.match(/^\s*-\s*(.+?),\s*(.+)$/))) { add(m[2], m[1], "Panel"); continue; }
+    // talk speaker: an indented "Name, Inst" line under a titled time slot
+    if ((m = l.match(/^\s{2,}(.+?),\s*(.+)$/))) { add(m[2], m[1], "Speaker"); continue; }
+  }
+  if (recs.length === 0) return "";
+  const groups = {};
+  for (const r of recs) { (groups[r.inst] = groups[r.inst] || []).push(r); }
+  const dayOrder = { Wed: 1, Thu: 2, Fri: 3 };
+  let out = "";
+  for (const inst of Object.keys(groups).sort()) {
+    out += `\n${inst}:\n`;
+    const items = groups[inst].sort(
+      (a, b) => (dayOrder[a.day] || 9) - (dayOrder[b.day] || 9) || a.time.localeCompare(b.time)
+    );
+    for (const r of items) {
+      const t = r.title ? ` — ${r.title}` : "";
+      const ctx = r.context ? ` (${r.context})` : "";
+      out += `  [${r.day}] ${r.time} | ${r.role} | ${r.name}${t}${ctx}\n`;
+    }
+  }
+  return out;
+}
+
 function systemPrompt(programText, infoText, todayStr) {
+  // Defensive: a parser bug must never break answers. On any failure we fall
+  // back to an empty index and the model answers from the program text alone.
+  let speakerIndex = "";
+  try {
+    speakerIndex = buildSpeakerIndex(programText);
+  } catch (e) {
+    console.error("buildSpeakerIndex failed; continuing without index:", e);
+    speakerIndex = "";
+  }
+  const indexSection = speakerIndex
+    ? `
+
+=== SPEAKER INDEX BY INSTITUTION (auto-generated from the program above — AUTHORITATIVE and COMPLETE for enumeration) ===
+
+Every speaker, chair, moderator, panelist and case-presenter appearance in the program, grouped by institution. Each line is: [Day] Time | Role | Name — Title (Session/Workshop).
+For any question that ENUMERATES by institution, speaker, or role — e.g. "which lectures/speakers are from <hospital>", "list everyone from X", "all of Dr. Y's appearances/sessions" — treat THIS index as the complete, authoritative list and build your answer from it. Do NOT re-scan the program and risk missing items (especially in the parallel Friday workshops). Role meanings: "Speaker" = gives a talk; "Chair"/"Moderator" = runs a session, not a talk; "Panel"/"Case" = a contribution inside a panel or case session. When the user asks specifically for "lectures"/"הרצאות", that means Role = Speaker (mention Panel/Case items separately only if relevant), and exclude Chair/Moderator-only roles.
+${speakerIndex}
+=== END OF SPEAKER INDEX ===`
+    : "";
+
   const infoSection = infoText
     ? `
 
@@ -141,7 +232,7 @@ Every session, talk, workshop, panel and item belongs to the day block it physic
 
 ${programText}
 
-=== END OF CONFERENCE PROGRAM ===${infoSection}`;
+=== END OF CONFERENCE PROGRAM ===${indexSection}${infoSection}`;
 }
 
 export default async function handler(req, res) {
